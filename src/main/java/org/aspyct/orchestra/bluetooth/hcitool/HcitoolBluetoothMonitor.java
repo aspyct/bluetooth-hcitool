@@ -132,44 +132,48 @@ public class HcitoolBluetoothMonitor implements BluetoothMonitor, Runnable {
 				watch = new ArrayList<BluetoothDevice>(watchedDevices);
 			}
 			
-			Runtime runtime = Runtime.getRuntime();
 			for (BluetoothDevice device: watch) {
-				System.out.println("Looking for " + device.getMacAddr());
-				try {
-					Process hcitool = runtime.exec(new String[] {
-							"hcitool",
-							"name",
-							device.getMacAddr()
-					});
+				lookFor(device);
+			}
+		}
+
+		private void lookFor(BluetoothDevice device) {
+			Runtime runtime = Runtime.getRuntime();
+			System.out.println("Looking for " + device.getMacAddr());
+			try {
+				Process hcitool = runtime.exec(new String[] {
+						"hcitool",
+						"name",
+						device.getMacAddr()
+				});
+				
+				int code = hcitool.waitFor();
+				
+				if (code == 0) {
+					BufferedReader br = new BufferedReader(new InputStreamReader(hcitool.getInputStream()));
+					String name = br.readLine().trim();
 					
-					int code = hcitool.waitFor();
-					
-					if (code == 0) {
-						BufferedReader br = new BufferedReader(new InputStreamReader(hcitool.getInputStream()));
-						String name = br.readLine().trim();
-						
-						if (name.isEmpty()) {
-							System.out.println("Not found: " + device.getMacAddr());
-							synchronized (liveDevices) {
-								liveDevices.remove(device);
-							}
-						}
-						else {
-							System.out.println("Found: " + device.getMacAddr() + " as \"" + name + "\"");
-							synchronized (liveDevices) {
-								liveDevices.add(device);
-							}
+					if (name.isEmpty()) {
+						System.out.println("Not found: " + device.getMacAddr());
+						synchronized (liveDevices) {
+							liveDevices.remove(device);
 						}
 					}
 					else {
-						System.err.println("Command exited with status " + code);
+						System.out.println("Found: " + device.getMacAddr() + " as \"" + name + "\"");
+						synchronized (liveDevices) {
+							liveDevices.add(device);
+						}
 					}
-					
-				} catch (IOException e) {
-					e.printStackTrace();
-				} catch (InterruptedException e) {
-					e.printStackTrace();
 				}
+				else {
+					System.err.println("Command exited with status " + code);
+				}
+				
+			} catch (IOException e) {
+				e.printStackTrace();
+			} catch (InterruptedException e) {
+				e.printStackTrace();
 			}
 		}
 	};
