@@ -1,8 +1,5 @@
 package org.aspyct.orchestra.bluetooth.hcitool;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -15,6 +12,8 @@ import org.aspyct.orchestra.api.bluetooth.BluetoothListener;
 import org.aspyct.orchestra.api.bluetooth.BluetoothMonitor;
 
 public class HcitoolBluetoothMonitor implements BluetoothMonitor, Runnable {
+	private Hcitool hcitool;
+	
 	private List<BluetoothListener> listeners;
 	
 	private Set<BluetoothDevice> watchedDevices;
@@ -117,6 +116,31 @@ public class HcitoolBluetoothMonitor implements BluetoothMonitor, Runnable {
 	public void setShortScanInterval(long shortScanInterval) {
 		this.shortScanInterval = shortScanInterval;
 	}
+	
+	private void scanForDevices() {
+		System.out.println("Running now");
+		
+		List<BluetoothDevice> watch;
+		synchronized (watchedDevices) {
+			watch = new ArrayList<BluetoothDevice>(watchedDevices);
+		}
+		
+		for (BluetoothDevice device: watch) {
+			System.out.println("Looking for " + device.getMacAddr());
+			boolean found = hcitool.name(device);
+			
+			synchronized (liveDevices) {
+				if (found) {
+					System.out.println("Found: " + device.getMacAddr() + " as \"" + device.getName() + "\"");
+					liveDevices.add(device);
+				}
+				else {
+					System.out.println("Not found: " + device.getMacAddr());
+					liveDevices.remove(device);
+				}
+			}
+		}
+	}
 
 	public void run() {
 		scanTimer.scheduleAtFixedRate(timerTask, 0, longScanInterval);
@@ -125,58 +149,17 @@ public class HcitoolBluetoothMonitor implements BluetoothMonitor, Runnable {
 	private TimerTask timerTask = new TimerTask() {
 		@Override
 		public void run() {
-			System.out.println("Running now");
-			
-			List<BluetoothDevice> watch;
-			synchronized (watchedDevices) {
-				watch = new ArrayList<BluetoothDevice>(watchedDevices);
-			}
-			
-			for (BluetoothDevice device: watch) {
-				lookFor(device);
-			}
-		}
-
-		private void lookFor(BluetoothDevice device) {
-			Runtime runtime = Runtime.getRuntime();
-			System.out.println("Looking for " + device.getMacAddr());
-			try {
-				Process hcitool = runtime.exec(new String[] {
-						"hcitool",
-						"name",
-						device.getMacAddr()
-				});
-				
-				int code = hcitool.waitFor();
-				
-				if (code == 0) {
-					BufferedReader br = new BufferedReader(new InputStreamReader(hcitool.getInputStream()));
-					String name = br.readLine().trim();
-					
-					if (name.isEmpty()) {
-						System.out.println("Not found: " + device.getMacAddr());
-						synchronized (liveDevices) {
-							liveDevices.remove(device);
-						}
-					}
-					else {
-						System.out.println("Found: " + device.getMacAddr() + " as \"" + name + "\"");
-						synchronized (liveDevices) {
-							liveDevices.add(device);
-						}
-					}
-				}
-				else {
-					System.err.println("Command exited with status " + code);
-				}
-				
-			} catch (IOException e) {
-				e.printStackTrace();
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
+			scanForDevices();
 		}
 	};
+
+	public Hcitool getHcitool() {
+		return hcitool;
+	}
+
+	public void setHcitool(Hcitool hcitool) {
+		this.hcitool = hcitool;
+	}
 	
 	public static void main(String[] args) {
 		HcitoolBluetoothMonitor monitor = new HcitoolBluetoothMonitor();
