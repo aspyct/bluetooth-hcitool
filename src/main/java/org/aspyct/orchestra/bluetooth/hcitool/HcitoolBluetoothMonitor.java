@@ -117,7 +117,7 @@ public class HcitoolBluetoothMonitor implements BluetoothMonitor, Runnable {
 		this.shortScanInterval = shortScanInterval;
 	}
 	
-	private void scanForDevices() {
+	public void scanForDevices() {
 		System.out.println("Running now");
 		
 		List<BluetoothDevice> watch;
